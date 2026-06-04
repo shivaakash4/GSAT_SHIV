@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grain Size Analysis Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js Data Labels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+        .text-sans {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 text-sans">Grain Size Analysis Tool</h1>
+            <p class="text-md text-gray-600 mt-2 font-bold text-sans">Professional sedimentology analysis</p>
+        </header>
+
+        <main class="flex flex-col gap-8">
+            <!-- 1. Input Section (Top Middle) -->
+            <div class="max-w-2xl mx-auto w-full bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold mb-4 border-b pb-2 text-sans">1. Input Data</h2>
+                <div id="sieve-data-input">
+                    <!-- Sieve data rows injected by JS -->
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6">
+                    <button id="calculate-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-300 text-sans">
+                        Calculate & Plot
+                    </button>
+                    <button id="sample-data-btn" class="w-full bg-gray-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-600 transition duration-300 text-sans">
+                        Load Sample Data
+                    </button>
+                </div>
+                <button id="export-btn" class="w-full bg-emerald-600 text-white font-bold py-3 px-4 mt-2 rounded-lg hover:bg-emerald-700 transition duration-300 hidden text-sans">
+                    Download All Plots (4K Ultra HD)
+                </button>
+            </div>
+
+            <!-- 2. Statistical Results (Middle) -->
+            <div id="results" class="max-w-2xl mx-auto w-full bg-white p-6 rounded-xl shadow-lg hidden">
+                <h2 class="text-2xl font-bold mb-4 border-b pb-2 text-sans">2. Statistical Results</h2>
+                <div id="statistical-results" class="grid grid-cols-1 gap-1 text-gray-700 text-sm text-sans">
+                </div>
+            </div>
+
+            <!-- 3. Charts Section (Bottom) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-lg md:col-span-2">
+                    <h3 class="text-xl font-bold mb-4 text-center text-sans">Grain Size Distribution Curve (Arithmetic Log)</h3>
+                    <div class="chart-container" style="height: 500px;">
+                        <canvas id="distribution-curve"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 border-b pb-2 gap-2">
+                        <h3 class="text-xl font-bold text-sans">Weight % Histogram (Φ Scale)</h3>
+                        <div class="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
+                            <input type="checkbox" id="overlay-curve-toggle" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer">
+                            <label for="overlay-curve-toggle" class="text-xs font-bold text-blue-800 cursor-pointer uppercase tracking-tight text-sans">Overlay Curve</label>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="histogram-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 text-center text-sans">Sediment Classification (Pie)</h3>
+                    <div class="chart-container">
+                        <canvas id="pie-chart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 text-center text-sans">Gravel-Sand-Fines proportions</h3>
+                    <div class="chart-container">
+                        <canvas id="classification-bar-chart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 text-center text-sans">Weight % Finer vs. Φ Scale</h3>
+                    <div class="chart-container">
+                        <canvas id="phi-scale-chart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 text-center text-sans">Frequency Curve (Φ)</h3>
+                    <div class="chart-container">
+                        <canvas id="frequency-curve"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 text-center text-sans">Kernel density estimate (Φ)</h3>
+                    <div class="chart-container">
+                        <canvas id="density-curve"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const SANS_SERIF_STACK = "'Inter', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif";
+        const BASE_FONT_SIZE = 12;
+        const BASE_AXIS_WIDTH = 2;
+
+        const applyGlobalDefaults = () => {
+            Chart.defaults.font.family = SANS_SERIF_STACK;
+            Chart.defaults.font.size = BASE_FONT_SIZE;
+            Chart.defaults.font.weight = 'bold';
+            Chart.defaults.color = '#000000';
+        };
+        applyGlobalDefaults();
+
+        const sieves = [
+            { size: 8, phi: -3 }, { size: 4, phi: -2 }, { size: 2, phi: -1 },
+            { size: 1, phi: 0 }, { size: 0.5, phi: 1 }, { size: 0.25, phi: 2 },
+            { size: 0.125, phi: 3 }, { size: 0.062, phi: 4 }, { size: 'Pan', phi: 5 } 
+        ];
+        
+        const sampleWeights = [5.0, 10.5, 25.2, 75.0, 150.8, 80.4, 45.1, 15.6, 5.2];
+        let chartInstances = {};
+        let chartConfigs = {};
+
+        const boxBorderPlugin = {
+            id: 'boxBorder',
+            beforeDraw: (chart) => {
+                const { ctx, chartArea: { left, top, right, bottom } } = chart;
+                const scale = chart.options.exportScale || 1;
+                const lw = BASE_AXIS_WIDTH * scale;
+                const halfLw = lw / 2;
+                ctx.save();
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = lw;
+                ctx.lineCap = 'square';
+                ctx.lineJoin = 'miter';
+                ctx.beginPath();
+                ctx.moveTo(left, top + halfLw);
+                ctx.lineTo(right - halfLw, top + halfLw);
+                ctx.lineTo(right - halfLw, bottom);
+                ctx.stroke();
+                ctx.restore();
+            }
+        };
+
+        const projectionLinesPlugin = {
+            id: 'projectionLines',
+            beforeDraw: (chart) => {
+                if (chart.canvas.id !== 'distribution-curve' && !chart.canvas.classList.contains('export-canvas-gsd')) return;
+                const { ctx, scales: { x, y } } = chart;
+                const dataset = chart.data.datasets.find(ds => ds.label === 'Folk');
+                if (!dataset || !dataset.data) return;
+                const scale = chart.options.exportScale || 1;
+                ctx.save();
+                ctx.setLineDash([4 * scale, 4 * scale]);
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+                ctx.lineWidth = 1 * scale;
+                dataset.data.forEach(point => {
+                    if (isNaN(point.x) || isNaN(point.y)) return;
+                    const pixelX = x.getPixelForValue(point.x);
+                    const pixelY = y.getPixelForValue(point.y);
+                    ctx.beginPath();
+                    ctx.moveTo(pixelX, pixelY);
+                    ctx.lineTo(x.left, pixelY);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(pixelX, pixelY);
+                    ctx.lineTo(pixelX, y.bottom);
+                    ctx.stroke();
+                });
+                ctx.restore();
+            }
+        };
+
+        const boldAxisOptions = (titleText, reverse = false, stacked = false, offset = false) => ({
+            title: { display: true, text: titleText, color: '#000000', font: { weight: 'bold', size: BASE_FONT_SIZE, family: SANS_SERIF_STACK } },
+            ticks: { display: true, color: '#000000', font: { weight: 'bold', size: BASE_FONT_SIZE, family: SANS_SERIF_STACK }, maxRotation: 0, minRotation: 0 },
+            border: { display: true, width: BASE_AXIS_WIDTH, color: '#000000' },
+            grid: { display: true, drawOnChartArea: false, drawTicks: true, color: '#000000', lineWidth: BASE_AXIS_WIDTH, tickLength: 6, offset: offset },
+            offset: offset, reverse: reverse, stacked: stacked
+        });
+
+        const renderChart = (canvasId, config) => {
+            if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            chartConfigs[canvasId] = config; 
+            chartInstances[canvasId] = new Chart(ctx, config);
+        };
+        
+        const initializeInputs = () => {
+            const container = document.getElementById('sieve-data-input');
+            container.innerHTML = sieves.map(sieve => {
+                const labelText = sieve.size === 'Pan' ? 'Pan' : `Sieve ${sieve.size} mm`;
+                return `<div class="grid grid-cols-2 items-center mb-2"><label class="text-sm font-bold text-sans">${labelText}:</label><input type="number" id="sieve-${sieve.size}" class="sieve-input border border-gray-300 rounded-md p-2 text-right focus:ring-2 focus:ring-blue-500 font-bold text-sans" placeholder="0.0"></div>`
+            }).join('');
+            const hint = document.createElement('div');
+            hint.className = "text-xs text-blue-600 mt-3 italic bg-blue-50 p-2 rounded border border-blue-100 text-sans font-bold";
+            hint.innerHTML = "💡 <strong>Tip:</strong> Copy a column from Excel and paste it here into the first box.";
+            container.appendChild(hint);
+            const inputs = document.querySelectorAll('.sieve-input');
+            inputs.forEach((input, index) => {
+                input.addEventListener('paste', (e) => {
+                    const data = (e.clipboardData || window.clipboardData).getData('text');
+                    const vals = data.split(/[\n\r\t]+/).map(v => v.trim()).filter(v => v !== '');
+                    if (vals.length > 1) {
+                        e.preventDefault();
+                        vals.forEach((v, i) => { if (index + i < inputs.length) inputs[index + i].value = v; });
+                    }
+                });
+            });
+        };
+
+        const loadSampleData = () => {
+            const inputs = document.querySelectorAll('.sieve-input');
+            inputs.forEach((input, index) => { if (index < sampleWeights.length) input.value = sampleWeights[index]; });
+            performAnalysis();
+        };
+        
+        const performAnalysis = () => {
+            const weights = Array.from(document.querySelectorAll('.sieve-input')).map(input => parseFloat(input.value) || 0);
+            const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+            if (totalWeight === 0) return;
+            const weightPercent = weights.map(w => (w / totalWeight) * 100);
+            const cumulativePassingPercent = weights.map((w, i) => {
+                const sumRetained = weights.slice(0, i+1).reduce((a,b)=>a+b, 0);
+                return 100 - (sumRetained/totalWeight)*100;
+            });
+
+            const phiPoints = [-3, -2, -1, 0, 1, 2, 3, 4, 5]; 
+            const analysisCumRetained = [0, ...weights.map((w, i) => (weights.slice(0, i+1).reduce((a,b)=>a+b, 0)/totalWeight)*100)];
+            const interpolatePhi = (p) => {
+                const phiScale = [-4, ...phiPoints];
+                for (let i = 0; i < analysisCumRetained.length - 1; i++) {
+                    if (analysisCumRetained[i] <= p && analysisCumRetained[i+1] >= p) {
+                        return phiScale[i] + (p - analysisCumRetained[i]) * (phiScale[i+1] - phiScale[i]) / (analysisCumRetained[i+1] - analysisCumRetained[i]);
+                    }
+                }
+                return NaN;
+            };
+            const p5 = interpolatePhi(5), p16 = interpolatePhi(16), p25 = interpolatePhi(25), p50 = interpolatePhi(50), p75 = interpolatePhi(75), p84 = interpolatePhi(84), p95 = interpolatePhi(95);
+
+            let maxW = -1;
+            weightPercent.forEach(wp => { if (wp > maxW) maxW = wp; });
+            let mIdx = weightPercent.findIndex(wp => wp === maxW);
+            let modePhi = sieves[mIdx].size === 'Pan' ? '>4' : sieves[mIdx].phi;
+
+            let Mz = ((p16 + p50 + p84) / 3).toFixed(2);
+            let Sd = ((p84 - p16) / 4 + (p95 - p5) / 6.6).toFixed(2);
+            let Sk = ((p16 + p84 - 2 * p50) / (2 * (p84 - p16)) + (p5 + p95 - 2 * p50) / (2 * (p95 - p5))).toFixed(2);
+            let Kg = ((p95 - p5) / (2.44 * (p75 - p25))).toFixed(2);
+            let D50mm = Math.pow(2,-p50).toFixed(3);
+
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('statistical-results').innerHTML = `
+                <div class="p-2 bg-blue-50 border-l-4 border-blue-600 mb-1 font-bold text-sans">
+                    <p>Graphic Mean (Mz): ${Mz} φ</p>
+                    <p>Median (D50): ${D50mm} mm (${p50.toFixed(2)} φ)</p>
+                </div>
+                <div class="p-2 bg-gray-50 border-l-4 border-gray-600 font-bold text-sans">
+                    <p>Sorting (σI): ${Sd} φ</p>
+                    <p>Skewness (SkI): ${Sk}</p>
+                    <p>Kurtosis (KG): ${Kg}</p>
+                    <p>Modal Class: ${modePhi} φ</p>
+                </div>
+            `;
+
+            renderChart('distribution-curve', {
+                type: 'line',
+                data: {
+                    datasets: [
+                        { label: 'Curve', data: [16, 8, 4, 2, 1, 0.5, 0.25, 0.125, 0.062, 0.031].map((s, idx) => ({ x: s, y: [100, ...cumulativePassingPercent][idx] })), borderColor: '#374151', borderWidth: 2, tension: 0.3, pointRadius: 0 },
+                        { label: 'Folk', data: [{x:Math.pow(2,-p5),y:95,label:'D95'},{x:Math.pow(2,-p16),y:84,label:'D84'},{x:Math.pow(2,-p50),y:50,label:'D50'},{x:Math.pow(2,-p84),y:16,label:'D16'},{x:Math.pow(2,-p95),y:5,label:'D5'}].filter(p=>!isNaN(p.x)), type: 'scatter', backgroundColor:'#000', pointRadius: 6, datalabels: { display: true, align: 'top', font: {weight:'bold',size:BASE_FONT_SIZE, family: SANS_SERIF_STACK}, formatter: (v) => v.label } }
+                    ]
+                },
+                plugins: [boxBorderPlugin, projectionLinesPlugin, ChartDataLabels],
+                options: {
+                    plugins: { legend: { display: false }, datalabels: { display: false } },
+                    scales: { 
+                        x: { ...boldAxisOptions('Diameter (mm)'), type: 'logarithmic', min: 0.01, max: 20, afterBuildTicks: (a) => { a.ticks = [0.01, 0.1, 1, 10].map(v => ({ value: v })); }, ticks: { callback: (v) => v.toString() } },
+                        y: { ...boldAxisOptions('Weight % Finer'), min: 0, max: 100 }
+                    },
+                    responsive: true, maintainAspectRatio: false
+                }
+            });
+
+            const histData = [...weightPercent].reverse();
+            const showCurve = document.getElementById('overlay-curve-toggle').checked;
+            const currentMax = Math.max(...histData);
+            renderChart('histogram-chart', {
+                type: 'bar',
+                data: {
+                    labels: ['>4', '4', '3', '2', '1', '0', '-1', '-2', '-3'],
+                    datasets: [
+                        { label: 'Freq', data: histData, backgroundColor: 'rgba(54, 162, 235, 0.6)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1, datalabels: { display: true, align: 'top', anchor: 'end', offset: 5, clip: false, font: {weight:'bold',size:BASE_FONT_SIZE, family: SANS_SERIF_STACK}, color: '#1e40af', formatter: (v) => (v === currentMax && v > 0) ? 'MODE' : '' } },
+                        ...(showCurve ? [{ label: 'Trend', type: 'line', data: histData, borderColor: '#1e293b', borderWidth: 1.5, tension: 0.4, pointRadius: 0, fill: false, datalabels: { display: false } }] : [])
+                    ]
+                },
+                plugins: [boxBorderPlugin, ChartDataLabels],
+                options: { animation: false, layout: { padding: { right: 40, top: 20 } }, plugins: { legend: { display: false }, datalabels: { display: false } }, scales: { x: boldAxisOptions('Φ Scale', false, false, true), y: { ...boldAxisOptions('Weight %'), grace: '45%' } }, responsive: true, maintainAspectRatio: false }
+            });
+
+            renderChart('pie-chart', {
+                type: 'pie',
+                plugins: [ChartDataLabels],
+                data: { labels: ['Gravel', 'Sand', 'Fines'], datasets: [{ data: [weightPercent.slice(0,3).reduce((a,b)=>a+b,0), weightPercent.slice(3,8).reduce((a,b)=>a+b,0), weightPercent[8]], backgroundColor: ['#6699CC', '#BDB76B', '#E69F00'], borderColor: '#fff', borderWidth: 2 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { font: { weight: 'bold', family: SANS_SERIF_STACK } } }, datalabels: { display: true, font: { weight: 'bold', size: BASE_FONT_SIZE, family: SANS_SERIF_STACK }, formatter: (v) => v > 0 ? v.toFixed(1) + '%' : '' } } }
+            });
+
+            renderChart('classification-bar-chart', {
+                type: 'bar',
+                data: { labels: ['Composition'], datasets: [{ label: 'Gravel', data: [weightPercent.slice(0,3).reduce((a,b)=>a+b,0)], backgroundColor: '#6699CC', maxBarThickness: 60 }, { label: 'Sand', data: [weightPercent.slice(3,8).reduce((a,b)=>a+b,0)], backgroundColor: '#BDB76B', maxBarThickness: 60 }, { label: 'Fines', data: [weightPercent[8]], backgroundColor: '#E69F00', maxBarThickness: 60 }] },
+                plugins: [ChartDataLabels], 
+                options: { plugins: { legend: { display: true, position: 'bottom', labels: { font: { weight: 'bold', family: SANS_SERIF_STACK } } }, datalabels: { font: { weight: 'bold', size: BASE_FONT_SIZE, family: SANS_SERIF_STACK }, anchor: 'center', align: 'center', formatter: (v) => v > 3 ? v.toFixed(1) + '%' : '' } }, scales: { x: boldAxisOptions('Total', false, true, true), y: { ...boldAxisOptions('Percent', false, true), min: 0, max: 100 } }, responsive: true, maintainAspectRatio: false }
+            });
+
+            const setupL = (id, yT, data, labels) => {
+                const color = id.includes('phi') ? '#71717a' : '#1e293b';
+                renderChart(id, {
+                    type: 'line',
+                    data: { labels: labels, datasets: [{ data: data, borderColor: color, backgroundColor: id === 'density-curve' ? 'rgba(30,41,59,0.4)' : color, pointRadius: id === 'density-curve' ? 0 : 4, pointBackgroundColor: color, pointBorderColor: color, borderWidth: 3, tension: 0.4, fill: id === 'density-curve', datalabels: { display: false } }] },
+                    plugins: [boxBorderPlugin],
+                    options: { plugins: { legend: { display: false }, datalabels: { display: false } }, scales: { x: { ...boldAxisOptions('\u03A6 Scale', true, false, true), ticks: { autoSkip: false, maxRotation: 0, minRotation: 0 } }, y: boldAxisOptions(yT) }, responsive: true, maintainAspectRatio: false }
+                });
+            };
+            setupL('phi-scale-chart', 'Weight % Finer', [100, ...cumulativePassingPercent], [-4, ...phiPoints]);
+            setupL('frequency-curve', 'Weight %', weightPercent, phiPoints);
+            setupL('density-curve', 'Density (wt % per \u03A6)', weightPercent, phiPoints);
+            document.getElementById('export-btn').classList.remove('hidden');
+        };
+
+        const downloadAllPlots = async () => {
+            const targetHeight = 2160; 
+            const chartsToExport = Object.keys(chartInstances);
+            for (let id of chartsToExport) {
+                const originalChart = chartInstances[id];
+                const originalConfig = chartConfigs[id];
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const scale = targetHeight / originalChart.height;
+                canvas.width = originalChart.width * scale;
+                canvas.height = targetHeight;
+
+                if (id === 'distribution-curve') canvas.classList.add('export-canvas-gsd');
+
+                const hdConfig = JSON.parse(JSON.stringify(originalConfig));
+                hdConfig.options.responsive = false;
+                hdConfig.options.animation = false;
+                hdConfig.options.exportScale = scale; 
+
+                const recursiveScaleAndFont = (obj) => {
+                    for (let k in obj) {
+                        if (['size', 'fontSize', 'lineWidth', 'borderWidth', 'pointRadius', 'pointHoverRadius', 'padding', 'offset', 'tickLength', 'spacing', 'maxBarThickness', 'boxWidth', 'boxHeight'].includes(k)) {
+                            if (typeof obj[k] === 'number') obj[k] *= scale;
+                        }
+                        if (k === 'family' || k === 'fontFamily') obj[k] = SANS_SERIF_STACK;
+                        if (k === 'weight' || k === 'fontWeight') obj[k] = 'bold';
+                        if (typeof obj[k] === 'object' && obj[k] !== null) recursiveScaleAndFont(obj[k]);
+                    }
+                };
+                recursiveScaleAndFont(hdConfig.options);
+                if (hdConfig.data.datasets) hdConfig.data.datasets.forEach(ds => recursiveScaleAndFont(ds));
+
+                if (hdConfig.options.scales) {
+                    for (let axisKey in hdConfig.options.scales) {
+                        const axis = hdConfig.options.scales[axisKey];
+                        axis.title = axis.title || { font: {} };
+                        axis.ticks = axis.ticks || { font: {} };
+                        axis.title.font = { size: BASE_FONT_SIZE * scale, family: SANS_SERIF_STACK, weight: 'bold' };
+                        axis.ticks.font = { size: BASE_FONT_SIZE * scale, family: SANS_SERIF_STACK, weight: 'bold' };
+                        axis.ticks.maxRotation = 0;
+                        axis.ticks.minRotation = 0;
+                        
+                        if (id === 'distribution-curve' && axisKey === 'x') {
+                            axis.afterBuildTicks = (a) => { a.ticks = [0.01, 0.1, 1, 10].map(v => ({ value: v })); };
+                            axis.ticks.callback = (v) => v.toString();
+                        }
+                        axis.ticks.autoSkip = false;
+
+                        if (axis.grid) { axis.grid.lineWidth = BASE_AXIS_WIDTH * scale; axis.grid.tickLength = 6 * scale; }
+                        if (axis.border) axis.border.width = BASE_AXIS_WIDTH * scale;
+                    }
+                }
+                
+                if (hdConfig.options.plugins && hdConfig.options.plugins.legend) {
+                    const legend = hdConfig.options.plugins.legend;
+                    if (!legend.labels) legend.labels = {};
+                    legend.labels.font = { size: BASE_FONT_SIZE * scale, family: SANS_SERIF_STACK, weight: 'bold' };
+                    legend.labels.padding = (originalConfig.options.plugins?.legend?.labels?.padding || 10) * scale;
+                    legend.labels.boxWidth = (originalConfig.options.plugins?.legend?.labels?.boxWidth || 40) * scale;
+                }
+
+                if (hdConfig.options.plugins && hdConfig.options.plugins.datalabels) {
+                    const dl = hdConfig.options.plugins.datalabels;
+                    dl.font = { size: BASE_FONT_SIZE * scale, family: SANS_SERIF_STACK, weight: 'bold' };
+                    if (id === 'histogram-chart') {
+                        dl.anchor = 'end';
+                        dl.align = 'top';
+                        dl.clip = false;
+                        const maxVal = Math.max(...hdConfig.data.datasets[0].data);
+                        dl.formatter = (v) => (v === maxVal && v > 0) ? 'MODE' : '';
+                    } else if (id === 'pie-chart' || id === 'classification-bar-chart') {
+                        dl.formatter = (v) => v > 0 ? v.toFixed(1) + '%' : '';
+                    } else if (id === 'distribution-curve') {
+                        const originalDataset = originalConfig.data.datasets.find(d => d.label === 'Folk');
+                        dl.formatter = (v, ctx) => originalDataset.data[ctx.dataIndex].label;
+                    }
+                }
+
+                const activePlugins = [ChartDataLabels];
+                if (originalConfig.plugins.some(p => p.id === 'boxBorder')) activePlugins.push(boxBorderPlugin);
+                if (originalConfig.plugins.some(p => p.id === 'projectionLines')) activePlugins.push(projectionLinesPlugin);
+
+                const hdChart = new Chart(ctx, { ...hdConfig, plugins: activePlugins });
+                const link = document.createElement('a');
+                link.download = `${id}_4K_UHD.png`;
+                link.href = canvas.toDataURL('image/png', 1.0);
+                link.click();
+                hdChart.destroy();
+                await new Promise(r => setTimeout(r, 500)); 
+            }
+        };
+
+        document.getElementById('calculate-btn').addEventListener('click', performAnalysis);
+        document.getElementById('sample-data-btn').addEventListener('click', loadSampleData);
+        document.getElementById('export-btn').addEventListener('click', downloadAllPlots);
+        document.getElementById('overlay-curve-toggle').addEventListener('change', () => { if (Array.from(document.querySelectorAll('.sieve-input')).some(i => i.value)) performAnalysis(); });
+        window.onload = initializeInputs;
+    </script>
+</body>
+</html>
