@@ -5,9 +5,10 @@ import { APP_NAME, APP_TAGLINE } from '@/constants/app';
 
 interface HeaderProps {
   onBack: () => void;
+  onDownload?: () => void;
 }
 
-export default function Header({ onBack }: HeaderProps) {
+export default function Header({ onBack, onDownload }: HeaderProps) {
   const user    = useAuthStore(s => s.user);
   const setUser = useAuthStore(s => s.setUser);
 
@@ -17,30 +18,49 @@ export default function Header({ onBack }: HeaderProps) {
   };
 
   return (
-    <header className="text-center mb-8 relative">
-      {/* Back to landing — top left */}
-      <button
-        onClick={onBack}
-        className="absolute top-0 left-0 flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 font-semibold transition duration-200"
-      >
-        ← Back to Home
-      </button>
+    <header className="mb-4">
+      {/* Top row: back | title | actions */}
+      <div className="flex items-center justify-between gap-2">
+        {/* Left — back button */}
+        <button
+          onClick={onBack}
+          className="shrink-0 flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 font-semibold transition duration-200"
+        >
+          ← Back
+        </button>
 
-      <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{APP_NAME}</h1>
-      <p className="text-md text-gray-600 mt-2 font-bold">{APP_TAGLINE}</p>
+        {/* Centre — app name */}
+        <h1 className="text-xl md:text-3xl font-bold text-gray-900 text-center leading-tight">{APP_NAME}</h1>
 
-      {/* User + sign out — top right */}
-      {user && (
-        <div className="absolute top-0 right-0 flex items-center gap-3">
-          <span className="text-xs text-gray-500 hidden sm:inline">{user.email}</span>
-          <button
-            onClick={handleSignOut}
-            className="text-xs bg-red-100 hover:bg-red-200 text-red-700 font-semibold px-3 py-1.5 rounded-lg transition duration-200"
-          >
-            Sign Out
-          </button>
-        </div>
-      )}
+        {/* Right — download + sign out */}
+        {user ? (
+          <div className="shrink-0 flex items-center gap-2">
+            {onDownload && (
+              <button
+                onClick={onDownload}
+                className="flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1.5 rounded-lg transition duration-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                <span className="hidden sm:inline">Download Charts</span>
+              </button>
+            )}
+            <button
+              onClick={handleSignOut}
+              className="text-xs bg-red-100 hover:bg-red-200 text-red-700 font-semibold px-3 py-1.5 rounded-lg transition duration-200"
+            >
+              Sign Out
+            </button>
+          </div>
+        ) : (
+          /* Keep right side balanced when no user */
+          <div className="shrink-0 w-16" />
+        )}
+      </div>
+
+      {/* Tagline — centred below */}
+      <p className="text-sm text-gray-600 font-bold text-center mt-1">{APP_TAGLINE}</p>
     </header>
   );
 }

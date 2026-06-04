@@ -1,5 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
+import { useState } from 'react';
 import type { AnalysisResult } from '@/services/grainAnalysisService';
 import { boldAxisOptions, boxBorderPlugin, projectionLinesPlugin } from '@/lib/chartPlugins';
 import { BASE_FONT_SIZE, CHART_COLORS, PHI_POINTS, SANS_SERIF_STACK } from '@/constants/sieve';
@@ -9,6 +10,27 @@ const ChartWrapper = dynamic(() => import('./ChartWrapper'), { ssr: false });
 interface AllChartsProps {
   result: AnalysisResult;
   showOverlayCurve: boolean;
+}
+
+const CHART_IDS = [
+  { id: 'distribution-curve',      label: 'Grain_Size_Distribution_Curve' },
+  { id: 'histogram-chart',         label: 'Weight_Percent_Histogram' },
+  { id: 'pie-chart',               label: 'Sediment_Classification_Pie' },
+  { id: 'classification-bar-chart',label: 'Gravel_Sand_Fines_Bar' },
+  { id: 'phi-scale-chart',         label: 'Weight_Finer_vs_Phi' },
+  { id: 'frequency-curve',         label: 'Frequency_Curve_Phi' },
+  { id: 'density-curve',           label: 'Kernel_Density_Estimate' },
+];
+
+export function downloadAllCharts() {
+  CHART_IDS.forEach(({ id, label }) => {
+    const canvas = document.getElementById(id) as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `${label}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
 }
 
 export default function AllCharts({ result, showOverlayCurve }: AllChartsProps) {
@@ -204,40 +226,43 @@ export default function AllCharts({ result, showOverlayCurve }: AllChartsProps) 
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-      <div className="bg-white p-6 rounded-xl shadow-lg md:col-span-2">
-        <h3 className="text-xl font-bold mb-4 text-center">Grain Size Distribution Curve (Arithmetic Log)</h3>
-        <ChartWrapper id="distribution-curve" config={distributionConfig} height={500} />
-      </div>
+    <div className="flex flex-col gap-4 pb-4">
+      {/* Charts grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-lg xl:col-span-2">
+          <h3 className="text-xl font-bold mb-4 text-center">Grain Size Distribution Curve (Arithmetic Log)</h3>
+          <ChartWrapper id="distribution-curve" config={distributionConfig} height={420} />
+        </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <h3 className="text-xl font-bold mb-4 text-center">Weight % Histogram (Φ Scale)</h3>
-        <ChartWrapper id="histogram-chart" config={histConfig} />
-      </div>
+        <div className="bg-white p-6 rounded-xl shadow-lg">
+          <h3 className="text-xl font-bold mb-4 text-center">Weight % Histogram (Φ Scale)</h3>
+          <ChartWrapper id="histogram-chart" config={histConfig} />
+        </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <h3 className="text-xl font-bold mb-4 text-center">Sediment Classification (Pie)</h3>
-        <ChartWrapper id="pie-chart" config={pieConfig} />
-      </div>
+        <div className="bg-white p-6 rounded-xl shadow-lg">
+          <h3 className="text-xl font-bold mb-4 text-center">Sediment Classification (Pie)</h3>
+          <ChartWrapper id="pie-chart" config={pieConfig} />
+        </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <h3 className="text-xl font-bold mb-4 text-center">Gravel-Sand-Fines proportions</h3>
-        <ChartWrapper id="classification-bar-chart" config={barConfig} />
-      </div>
+        <div className="bg-white p-6 rounded-xl shadow-lg">
+          <h3 className="text-xl font-bold mb-4 text-center">Gravel-Sand-Fines Proportions</h3>
+          <ChartWrapper id="classification-bar-chart" config={barConfig} />
+        </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <h3 className="text-xl font-bold mb-4 text-center">Weight % Finer vs. Φ Scale</h3>
-        <ChartWrapper id="phi-scale-chart" config={makeLineConfig('phi-scale-chart', 'Weight % Finer', [100, ...cumulativePassingPercent], [-4, ...PHI_POINTS])} />
-      </div>
+        <div className="bg-white p-6 rounded-xl shadow-lg">
+          <h3 className="text-xl font-bold mb-4 text-center">Weight % Finer vs. Φ Scale</h3>
+          <ChartWrapper id="phi-scale-chart" config={makeLineConfig('phi-scale-chart', 'Weight % Finer', [100, ...cumulativePassingPercent], [-4, ...PHI_POINTS])} />
+        </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <h3 className="text-xl font-bold mb-4 text-center">Frequency Curve (Φ)</h3>
-        <ChartWrapper id="frequency-curve" config={makeLineConfig('frequency-curve', 'Weight %', weightPercent, PHI_POINTS)} />
-      </div>
+        <div className="bg-white p-6 rounded-xl shadow-lg">
+          <h3 className="text-xl font-bold mb-4 text-center">Frequency Curve (Φ)</h3>
+          <ChartWrapper id="frequency-curve" config={makeLineConfig('frequency-curve', 'Weight %', weightPercent, PHI_POINTS)} />
+        </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <h3 className="text-xl font-bold mb-4 text-center">Kernel Density Estimate (Φ)</h3>
-        <ChartWrapper id="density-curve" config={makeLineConfig('density-curve', 'Density (wt % per Φ)', weightPercent, PHI_POINTS)} />
+        <div className="bg-white p-6 rounded-xl shadow-lg">
+          <h3 className="text-xl font-bold mb-4 text-center">Kernel Density Estimate (Φ)</h3>
+          <ChartWrapper id="density-curve" config={makeLineConfig('density-curve', 'Density (wt % per Φ)', weightPercent, PHI_POINTS)} />
+        </div>
       </div>
     </div>
   );

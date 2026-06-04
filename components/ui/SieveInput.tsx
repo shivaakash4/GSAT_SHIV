@@ -23,7 +23,7 @@ export default function SieveInput() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto w-full bg-white p-6 rounded-xl shadow-lg">
+    <div className="w-full bg-white p-6 rounded-xl shadow-lg">
       <h2 className="text-2xl font-bold mb-4 border-b pb-2">1. Input Data</h2>
 
       <div>

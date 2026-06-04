@@ -8,7 +8,7 @@ export default function StatisticalResults() {
   const { Mz, D50mm, p50, Sd, Sk, Kg, modePhi } = result;
 
   return (
-    <div className="max-w-2xl mx-auto w-full bg-white p-6 rounded-xl shadow-lg">
+    <div className="w-full bg-white p-6 rounded-xl shadow-lg">
       <h2 className="text-2xl font-bold mb-4 border-b pb-2">2. Statistical Results</h2>
       <div className="grid grid-cols-1 gap-1 text-gray-700 text-sm">
         <div className="p-2 bg-blue-50 border-l-4 border-blue-600 mb-1 font-bold">

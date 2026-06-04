@@ -10,6 +10,7 @@ import LandingPage from '@/components/ui/LandingPage';
 import AuthModal from '@/components/auth/AuthModal';
 
 const AllCharts = dynamic(() => import('@/components/charts/AllCharts'), { ssr: false });
+import { downloadAllCharts } from '@/components/charts/AllCharts';
 
 type View = 'landing' | 'app';
 
@@ -34,14 +35,40 @@ export default function HomePage() {
   // Show GSAT app — only when logged in AND user chose to enter
   if (user && view === 'app') {
     return (
-      <div className="container mx-auto p-4 md:p-8">
-        <Header onBack={() => setView('landing')} />
-        <main className="flex flex-col gap-8">
+      <>
+        {/* ── MOBILE: single scrollable column ── */}
+        <div className="flex flex-col md:hidden min-h-screen bg-gray-100 px-4 pt-4 pb-8 gap-6">
+          <Header onBack={() => setView('landing')} onDownload={result ? downloadAllCharts : undefined} />
           <SieveInput />
           <StatisticalResults />
           {result && <AllCharts result={result} showOverlayCurve={showOverlayCurve} />}
-        </main>
-      </div>
+        </div>
+
+        {/* ── DESKTOP: fixed two-column layout ── */}
+        <div className="hidden md:flex flex-col h-screen overflow-hidden bg-gray-100">
+          <div className="shrink-0 px-4 pt-4 pb-2">
+            <Header onBack={() => setView('landing')} onDownload={result ? downloadAllCharts : undefined} />
+          </div>
+
+          <div className="flex flex-1 overflow-hidden gap-4 px-4 pb-4">
+            <aside className="w-[38%] shrink-0 flex flex-col gap-4 overflow-y-auto">
+              <SieveInput />
+              <StatisticalResults />
+            </aside>
+
+            <main className="flex-1 overflow-y-auto">
+              {result
+                ? <AllCharts result={result} showOverlayCurve={showOverlayCurve} />
+                : (
+                  <div className="h-full flex items-center justify-center text-gray-400 text-sm font-semibold">
+                    Enter sieve weights and click <span className="mx-1 text-blue-600">Calculate &amp; Plot</span> to see charts.
+                  </div>
+                )
+              }
+            </main>
+          </div>
+        </div>
+      </>
     );
   }
 
