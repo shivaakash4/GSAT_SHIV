@@ -6,7 +6,7 @@ export function notifyAdmin(userEmail: string, action: 'login' | 'signup' = 'log
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      access_key: process.env.NEXT_PUBLIC_WEB3FORMS_KEY,
+      access_key: (process.env.NEXT_PUBLIC_WEB3FORMS_KEY ?? '').trim(),
       subject:    `GSAT ${label} Alert`,
       message:    `GSAT ${label}:\n\nEmail: ${userEmail}\nTime:  ${timeStr} (IST)`,
     }),
