@@ -2,7 +2,6 @@ import { supabase } from '@/lib/supabase';
 import { notifyAdmin } from '@/services/emailService';
 
 export async function signUp(email: string, password: string) {
-  // Sign up with no email confirmation — user is logged in immediately
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -13,7 +12,10 @@ export async function signUp(email: string, password: string) {
   });
   if (error) return { data, error };
 
-  // If session already exists (email confirm disabled in dashboard), return it
+  // Notify admin about new signup
+  notifyAdmin(email, 'signup');
+
+  // If session exists (email confirm disabled in dashboard), return immediately
   if (data.session) return { data, error: null };
 
   // Fallback: auto sign in right after signup
@@ -23,7 +25,7 @@ export async function signUp(email: string, password: string) {
 export async function signIn(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (!error && data.user) {
-    notifyAdmin(data.user.email!);
+    notifyAdmin(data.user.email!, 'login');
   }
   return { data, error };
 }
