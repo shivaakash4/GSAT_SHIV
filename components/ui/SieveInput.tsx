@@ -1,62 +1,114 @@
 'use client';
-import { useRef } from 'react';
-import { SIEVES } from '@/constants/sieve';
+
 import { useGrainAnalysis } from '@/hooks/useGrainAnalysis';
+import { downloadCsvReport } from '@/services/grainAnalysisService';
+import { downloadAllCharts } from '@/components/charts/AllCharts';
 
 export default function SieveInput() {
-  const { weights, updateWeight, calculate, loadSample, showOverlayCurve, setShowOverlayCurve } = useGrainAnalysis();
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const {
+    rows,
+    result,
+    error,
+    updateRow,
+    addRow,
+    removeRow,
+    replaceFromPaste,
+    calculate,
+    loadSample,
+  } = useGrainAnalysis();
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>, index: number) => {
-    const text = e.clipboardData.getData('text');
-    const vals = text.split(/[\n\r\t]+/).map(v => v.trim()).filter(v => v !== '');
-    if (vals.length > 1) {
-      e.preventDefault();
-      vals.forEach((v, i) => {
-        const idx = index + i;
-        if (idx < SIEVES.length) {
-          updateWeight(idx, parseFloat(v) || 0);
-          if (inputRefs.current[idx]) inputRefs.current[idx]!.value = v;
-        }
-      });
-    }
+  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = event.clipboardData.getData('text');
+    if (!/[\t,\n\r]/.test(text)) return;
+    event.preventDefault();
+    replaceFromPaste(text);
   };
 
   return (
-    <div className="w-full bg-white p-6 rounded-xl shadow-lg">
-      <h2 className="text-2xl font-bold mb-4 border-b pb-2">1. Input Data</h2>
+    <div className="max-w-3xl mx-auto w-full bg-white p-6 rounded-xl shadow-lg">
+      <div className="flex justify-between items-center border-b pb-2 mb-4">
+        <h2 className="text-2xl font-bold">1. Input Data</h2>
+        <button
+          type="button"
+          onClick={addRow}
+          className="text-sm bg-blue-100 text-blue-700 font-bold py-1 px-3 rounded hover:bg-blue-200 transition"
+        >
+          + Add Sieve
+        </button>
+      </div>
 
-      <div>
-        {SIEVES.map((sieve, index) => (
-          <div key={sieve.size} className="grid grid-cols-2 items-center mb-2">
-            <label className="text-sm font-bold">
-              {sieve.size === 'Pan' ? 'Pan' : `Sieve ${sieve.size} mm`}:
-            </label>
-            <input
-              type="number"
-              ref={el => { inputRefs.current[index] = el; }}
-              defaultValue={weights[index] || ''}
-              onChange={e => updateWeight(index, parseFloat(e.target.value) || 0)}
-              onPaste={e => handlePaste(e, index)}
-              placeholder="0.0"
-              className="border border-gray-300 rounded-md p-2 text-right focus:ring-2 focus:ring-blue-500 font-bold"
-            />
+      <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4 text-sm text-blue-800 font-bold">
+        Tip: Paste two columns directly from Excel (Size in mm, Weight in g)
+        into the first box. Use size &quot;0&quot; to represent the Pan.
+      </div>
+
+      <div className="grid grid-cols-12 gap-4 mb-2 font-bold text-gray-600 text-sm text-center border-b pb-1">
+        <div className="col-span-5 text-left">Sieve Size (mm)</div>
+        <div className="col-span-5 text-left">Weight Retained (g)</div>
+        <div className="col-span-2">Action</div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {rows.map((row) => (
+          <div
+            key={row.id}
+            className="grid grid-cols-12 gap-4 items-center"
+          >
+            <div className="col-span-5">
+              <input
+                type="number"
+                value={row.size}
+                onChange={(event) =>
+                  updateRow(row.id, 'size', event.target.value)
+                }
+                onPaste={handlePaste}
+                placeholder="Size (mm) or 0 for Pan"
+                className="w-full border border-gray-300 rounded-md p-2 text-right focus:ring-2 focus:ring-blue-500 font-bold"
+              />
+            </div>
+            <div className="col-span-5">
+              <input
+                type="number"
+                min="0"
+                value={row.weight}
+                onChange={(event) =>
+                  updateRow(row.id, 'weight', event.target.value)
+                }
+                onPaste={handlePaste}
+                placeholder="Weight (g)"
+                className="w-full border border-gray-300 rounded-md p-2 text-right focus:ring-2 focus:ring-blue-500 font-bold"
+              />
+            </div>
+            <div className="col-span-2 text-center">
+              <button
+                type="button"
+                onClick={() => removeRow(row.id)}
+                className="text-red-500 hover:text-red-700 font-bold px-2 py-1 bg-red-50 rounded"
+                aria-label="Remove sieve row"
+              >
+                X
+              </button>
+            </div>
           </div>
         ))}
-
-        <div className="text-xs text-blue-600 mt-3 italic bg-blue-50 p-2 rounded border border-blue-100 font-bold">
-          💡 <strong>Tip:</strong> Copy a column from Excel and paste it here into the first box.
-        </div>
       </div>
+
+      {error && (
+        <div className="mt-4 bg-red-50 border-l-4 border-red-600 text-red-800 p-3 font-bold text-sm">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6">
         <button
+          type="button"
           onClick={calculate}
           className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-300"
         >
           Calculate &amp; Plot
         </button>
         <button
+          type="button"
           onClick={loadSample}
           className="w-full bg-gray-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-600 transition duration-300"
         >
@@ -64,18 +116,24 @@ export default function SieveInput() {
         </button>
       </div>
 
-      <div className="flex items-center space-x-2 mt-4 px-3 py-2 bg-blue-50 rounded-full border border-blue-100 w-fit">
-        <input
-          type="checkbox"
-          id="overlay-curve-toggle"
-          checked={showOverlayCurve}
-          onChange={e => setShowOverlayCurve(e.target.checked)}
-          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-        />
-        <label htmlFor="overlay-curve-toggle" className="text-xs font-bold text-blue-800 cursor-pointer uppercase tracking-tight">
-          Overlay Curve
-        </label>
-      </div>
+      {result && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <button
+            type="button"
+            onClick={() => downloadCsvReport(result)}
+            className="w-full bg-yellow-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-yellow-700 transition duration-300"
+          >
+            Download CSV Report
+          </button>
+          <button
+            type="button"
+            onClick={downloadAllCharts}
+            className="w-full bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-emerald-700 transition duration-300"
+          >
+            Download Plots (4K)
+          </button>
+        </div>
+      )}
     </div>
   );
 }

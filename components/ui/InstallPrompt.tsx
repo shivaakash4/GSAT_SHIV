@@ -12,9 +12,25 @@ export default function InstallPrompt() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    // Register service worker
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      if (process.env.NODE_ENV === 'development') {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((registrations) =>
+            Promise.all(registrations.map((registration) => registration.unregister()))
+          )
+          .then(() => caches.keys())
+          .then((keys) =>
+            Promise.all(
+              keys
+                .filter((key) => key.startsWith('gsat-'))
+                .map((key) => caches.delete(key))
+            )
+          )
+          .catch(() => {});
+      } else {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
     }
 
     const handler = (e: Event) => {
@@ -25,24 +41,10 @@ export default function InstallPrompt() {
 
     window.addEventListener('beforeinstallprompt', handler);
 
-    // Also show after a short delay if event already fired (some Android browsers)
-    const timer = setTimeout(() => {
-      if (!deferredPrompt) {
-        // Check if already installed
-        const isStandalone =
-          window.matchMedia('(display-mode: standalone)').matches ||
-          (window.navigator as { standalone?: boolean }).standalone === true;
-        if (!isStandalone) {
-          // We can't trigger the native prompt without the event, but we can hint
-        }
-      }
-    }, 3000);
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
-      clearTimeout(timer);
     };
-  }, [deferredPrompt]);
+  }, []);
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
