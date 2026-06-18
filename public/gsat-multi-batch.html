@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GSAT (Advanced Grain Size Analysis Tool) Multi-Batch</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .chart-container { position: relative; height: 400px; width: 100%; }
+        .text-sans { font-family: 'Inter', sans-serif; }
+        .matrix-scroll::-webkit-scrollbar { height: 8px; }
+        .matrix-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .matrix-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .matrix-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 pb-12">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 text-sans">GSAT</h1>
+            <p class="text-md text-gray-600 mt-2 font-bold text-sans">Dynamic Grain size Modeling & Statistics (Multi-batch)</p>
+        </header>
+
+        <main class="flex flex-col gap-8">
+            <div class="max-w-4xl mx-auto w-full bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-2xl font-bold text-sans">1. Batch Input Data</h2>
+                </div>
+                
+                <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4 text-sm text-blue-800 font-bold">
+                    💡 Tip: Paste a multi-column block directly from Excel (e.g., Col A: Size in mm, Col B: Sample 1 Weights, Col C: Sample 2 Weights). If the top row contains names, they will be auto-detected. Use size "0" for the Pan.
+                </div>
+
+                <div class="overflow-x-auto matrix-scroll border border-gray-200 rounded-lg mb-4">
+                    <table id="input-table" class="w-full text-sm text-left">
+                        <thead class="bg-gray-50 text-gray-700 font-bold" id="table-header-row">
+                            </thead>
+                        <tbody id="dynamic-sieve-container" class="divide-y divide-gray-100">
+                            </tbody>
+                    </table>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6">
+                    <button id="calculate-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-300 text-sans shadow-md">
+                        Calculate Batch & Plot
+                    </button>
+                    <button id="sample-data-btn" class="w-full bg-gray-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-600 transition duration-300 text-sans shadow-md">
+                        Load Sample Data
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                    <button id="export-csv-btn" class="w-full bg-yellow-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-yellow-700 transition duration-300 hidden text-sans shadow-md">
+                        Download Master CSV
+                    </button>
+                    <button id="export-plots-btn" class="w-full bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-emerald-700 transition duration-300 hidden text-sans shadow-md">
+                        Download Current Plots (4K)
+                    </button>
+                </div>
+            </div>
+
+            <div id="results-container" class="max-w-4xl mx-auto w-full bg-white p-6 rounded-xl shadow-lg hidden">
+                
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 border-b pb-4 gap-4">
+                    <h2 class="text-2xl font-bold text-sans mb-0">2. Statistical Results</h2>
+                    <div id="sample-selector-wrapper" class="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 shadow-sm">
+                        <label class="font-bold text-blue-900 uppercase text-xs tracking-wider whitespace-nowrap">Viewing Sample:</label>
+                        <select id="sample-selector" class="border border-blue-300 rounded p-1 font-bold text-blue-800 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 outline-none w-48 cursor-pointer text-sm">
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="warning-container" class="hidden bg-red-50 border-l-4 border-red-600 text-red-800 p-3 mb-4 font-bold text-sm">
+                    ⚠️ High Pan Weight Detected (>5%). Interpret fine tail statistics with caution.
+                </div>
+                
+                <div id="extrap-warning-container" class="hidden bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-3 mb-4 font-bold text-sm">
+                    <span id="extrap-warning-text"></span>
+                </div>
+
+                <div class="text-center mb-4">
+                    <h3 class="text-xl font-bold text-gray-800">Sediment Classification</h3>
+                    <p id="sediment-name" class="text-2xl font-extrabold text-blue-600 uppercase tracking-wide mt-1"></p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700 text-sans">
+                    <div class="p-4 bg-gray-50 rounded border border-gray-200">
+                        <h4 class="font-bold text-lg mb-2 text-gray-900 border-b pb-1">Graphic Measures (Folk & Ward)</h4>
+                        <div id="graphic-stats" class="space-y-1 font-bold"></div>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded border border-gray-200">
+                        <h4 class="font-bold text-lg mb-2 text-gray-900 border-b pb-1">Method of Moments (MoM)</h4>
+                        <div id="mom-stats" class="space-y-1 font-bold"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="charts-wrapper" class="max-w-5xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-8 hidden">
+                
+                <div class="bg-white p-6 rounded-xl shadow-lg md:col-span-2 border border-blue-100">
+                    <div class="flex justify-between items-center mb-4 text-center">
+                        <h3 class="text-xl font-bold text-sans w-full">Global Grain Size Distribution Curve (Arithmetic Log)</h3>
+                    </div>
+                    <div class="chart-container" style="height: 500px;"><canvas id="distribution-curve"></canvas></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 border-b pb-2 gap-2">
+                        <h3 class="text-xl font-bold text-sans">Weight % Histogram (Φ)</h3>
+                        <div class="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
+                            <input type="checkbox" id="overlay-curve-toggle" class="w-4 h-4 text-blue-600 rounded cursor-pointer">
+                            <label for="overlay-curve-toggle" class="text-xs font-bold text-blue-800 cursor-pointer uppercase tracking-tight text-sans">Overlay Curve</label>
+                        </div>
+                    </div>
+                    <div class="chart-container"><canvas id="histogram-chart"></canvas></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 text-center text-sans border-b pb-2">Sediment Classification (Pie)</h3>
+                    <div class="chart-container"><canvas id="pie-chart"></canvas></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 id="composition-title" class="text-xl font-bold mb-4 text-center text-sans border-b pb-2">Composition Proportions</h3>
+                    <div class="chart-container"><canvas id="classification-bar-chart"></canvas></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 text-center text-sans border-b pb-2">Weight % Finer vs. Φ Scale</h3>
+                    <div class="chart-container"><canvas id="phi-scale-chart"></canvas></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 text-center text-sans border-b pb-2">Frequency Curve (Φ)</h3>
+                    <div class="chart-container"><canvas id="frequency-curve"></canvas></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 border-b pb-2 gap-2">
+                        <h3 class="text-xl font-bold text-sans">Kernel Density Estimate</h3>
+                        <div class="flex items-center space-x-2 bg-gray-50 px-3 py-1 rounded border border-gray-200">
+                            <label for="kde-bandwidth" class="text-xs font-bold text-gray-700 uppercase tracking-tight">Bandwidth:</label>
+                            <input type="number" id="kde-bandwidth" value="0.5" step="0.1" min="0.1" max="2.0" class="w-16 border border-gray-300 rounded p-1 text-sm text-center font-bold">
+                        </div>
+                    </div>
+                    <div class="chart-container"><canvas id="density-curve"></canvas></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- 1. CONFIGURATION & DEFAULTS ---
+        Chart.register(ChartDataLabels);
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.font.size = 12;
+        Chart.defaults.font.weight = 'bold';
+        Chart.defaults.color = '#000000';
+        
+        let chartInstances = {};
+        let latestResults = []; 
+        let currentSampleIndex = 0; 
+        let sampleNames = ['Sample 1']; 
+
+        const defaultDataMatrix = [
+            { size: 8, weights: [0.0, 0.0, 150.5] }, 
+            { size: 4, weights: [0.0, 0.0, 85.2] }, 
+            { size: 2, weights: [5.2, 0.0, 45.0] },
+            { size: 1, weights: [15.0, 5.0, 25.0] }, 
+            { size: 0.5, weights: [65.5, 25.0, 15.0] }, 
+            { size: 0.25, weights: [120.4, 150.5, 10.5] },
+            { size: 0.125, weights: [45.1, 85.0, 5.0] }, 
+            { size: 0.0625, weights: [15.6, 25.5, 12.0] }, 
+            { size: 0, weights: [5.2, 2.0, 45.0] }
+        ];
+        const defaultSampleNames = ['Fluvial Sand', 'Dune Sand', 'Glacial Till'];
+        const CHART_COLORS = ['#1e293b', '#2563eb', '#16a34a', '#dc2626', '#9333ea', '#ea580c', '#0d9488', '#ca8a04', '#db2777', '#4f46e5'];
+
+        // --- 2. DATA INGESTION & UI LOGIC ---
+        const UI = {
+            container: document.getElementById('dynamic-sieve-container'),
+            header: document.getElementById('table-header-row'),
+            
+            init() {
+                const saved = localStorage.getItem('sieveDataMatrix');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    sampleNames = parsed.names || ['Sample 1'];
+                    this.renderTable(parsed.matrix, sampleNames);
+                } else {
+                    this.renderTable([{size: 8, weights: [0]}, {size: 4, weights: [0]}], ['Sample 1']);
+                }
+                
+                document.getElementById('sample-data-btn').addEventListener('click', () => {
+                    localStorage.removeItem('sieveDataMatrix');
+                    this.renderTable(defaultDataMatrix, defaultSampleNames);
+                    AppLogic.execute();
+                });
+                document.getElementById('calculate-btn').addEventListener('click', () => AppLogic.execute());
+                document.getElementById('export-plots-btn').addEventListener('click', () => exportPlots());
+                document.getElementById('export-csv-btn').addEventListener('click', () => exportCSV());
+                
+                document.getElementById('overlay-curve-toggle').addEventListener('change', () => {
+                    if (latestResults.length > 0) AppLogic.renderCharts();
+                });
+
+                document.getElementById('kde-bandwidth').addEventListener('input', () => {
+                    if (latestResults.length > 0) AppLogic.renderCharts();
+                });
+
+                document.getElementById('sample-selector').addEventListener('change', (e) => {
+                    currentSampleIndex = parseInt(e.target.value);
+                    AppLogic.updateStatsDisplay();
+                    AppLogic.renderCharts();
+                });
+
+                this.attachPasteListener();
+            },
+
+            renderTable(dataMatrix, names) {
+                sampleNames = names || ['Sample 1'];
+                this.buildHeaders();
+                this.container.innerHTML = '';
+                dataMatrix.forEach(row => this.addRow(row.size, row.weights));
+            },
+
+            buildHeaders() {
+                let html = `<th class="p-2 border-b border-gray-300 w-32 text-left">Sieve Size (mm)</th>`;
+                sampleNames.forEach((name, i) => {
+                    html += `<th class="p-2 border-b border-gray-300 text-right min-w-[120px]">
+                                <div class="flex items-center justify-end gap-1">
+                                    <input type="text" class="sample-name-input font-bold text-blue-600 bg-transparent text-right w-full min-w-[80px] focus:outline-none focus:border-b focus:border-blue-400" data-index="${i}" value="${name}">
+                                    ${sampleNames.length > 1 ? `<button onclick="UI.removeSample(${i})" class="text-red-400 hover:text-red-600 font-bold ml-1 text-lg" title="Remove Sample">×</button>` : ''}
+                                </div>
+                             </th>`;
+                });
+                html += `<th class="p-2 border-b border-gray-300 text-center w-24">
+                            <button onclick="UI.addSample()" class="text-xs bg-blue-100 text-blue-700 font-bold py-1 px-2 rounded shadow-sm hover:bg-blue-200 w-full">+ Sample</button>
+                         </th>`;
+                html += `<th class="p-2 border-b border-gray-300 text-center w-16">
+                            <button onclick="UI.addRow()" class="text-xs bg-gray-200 text-gray-700 font-bold py-1 px-2 rounded shadow-sm hover:bg-gray-300 w-full">+ Row</button>
+                         </th>`;
+                this.header.innerHTML = html;
+                
+                document.querySelectorAll('.sample-name-input').forEach(inp => {
+                    inp.addEventListener('change', (e) => {
+                        sampleNames[e.target.dataset.index] = e.target.value;
+                        UI.saveState();
+                    });
+                });
+            },
+
+            addSample() {
+                sampleNames.push(`Sample ${sampleNames.length + 1}`);
+                const data = this.readData();
+                data.forEach(d => { while(d.weights.length < sampleNames.length) d.weights.push(''); });
+                this.renderTable(data, sampleNames);
+                this.saveState();
+            },
+
+            removeSample(idx) {
+                sampleNames.splice(idx, 1);
+                const data = this.readData();
+                data.forEach(d => d.weights.splice(idx, 1));
+                this.renderTable(data, sampleNames);
+                this.saveState();
+            },
+
+            addRow(size = '', weights = []) {
+                while(weights.length < sampleNames.length) weights.push('');
+                const rowId = `row-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                let html = `<tr id="${rowId}" class="sieve-row hover:bg-gray-50 transition border-b border-gray-100">`;
+                html += `<td class="p-1"><input type="number" class="size-input w-full border border-gray-300 rounded p-2 text-left focus:ring-2 focus:ring-blue-500 font-bold" placeholder="Size/0" value="${size}"></td>`;
+                weights.forEach((w, i) => {
+                    html += `<td class="p-1"><input type="number" class="weight-input w-full border border-gray-300 rounded p-2 text-right focus:ring-2 focus:ring-blue-500 font-bold" data-sample="${i}" placeholder="0.0" value="${w}"></td>`;
+                });
+                html += `<td></td>`;
+                html += `<td class="p-1 text-center"><button onclick="document.getElementById('${rowId}').remove(); UI.saveState();" class="text-red-400 hover:text-red-600 font-bold text-xl">×</button></td>`;
+                html += `</tr>`;
+                this.container.insertAdjacentHTML('beforeend', html);
+                
+                document.getElementById(rowId).querySelectorAll('input').forEach(inp => {
+                    inp.addEventListener('input', () => UI.saveState());
+                });
+            },
+
+            attachPasteListener() {
+                document.getElementById('input-table').addEventListener('paste', (e) => {
+                    const target = e.target;
+                    if (!target.classList.contains('size-input') && !target.classList.contains('weight-input')) return;
+                    
+                    e.preventDefault();
+                    const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+                    const lines = pasteData.split(/[\n\r]+/).filter(l => l.trim());
+                    if (lines.length === 0) return;
+                    
+                    const firstRow = lines[0].split(/[\t,]+/).map(c => c.trim());
+                    let hasHeaders = isNaN(parseFloat(firstRow[1])); 
+                    let newSampleNames = [];
+                    let dataLines = lines;
+                    
+                    if (hasHeaders) {
+                        newSampleNames = firstRow.slice(1).filter(n => n);
+                        dataLines = lines.slice(1);
+                    } else {
+                        let numCols = firstRow.length;
+                        for(let i=1; i<numCols; i++) newSampleNames.push(`Sample ${i}`);
+                    }
+                    
+                    let parsedData = dataLines.map(r => {
+                        const cols = r.split(/[\t,]+/).map(c => c.trim());
+                        return { 
+                            size: parseFloat(cols[0]) || 0, 
+                            weights: cols.slice(1).map(c => { const num = parseFloat(c); return isNaN(num) ? '' : num; }) 
+                        };
+                    });
+                    
+                    this.renderTable(parsedData, newSampleNames.length > 0 ? newSampleNames : ['Sample 1']);
+                    this.saveState();
+                });
+            },
+
+            readData() {
+                const rows = document.querySelectorAll('.sieve-row');
+                let data = [];
+                rows.forEach(row => {
+                    const size = parseFloat(row.querySelector('.size-input').value);
+                    const wInputs = row.querySelectorAll('.weight-input');
+                    let weights = Array.from(wInputs).map(inp => parseFloat(inp.value));
+                    data.push({ size: isNaN(size) ? '' : size, weights: weights.map(w => isNaN(w) ? '' : Math.max(0, w)) });
+                });
+                return data;
+            },
+
+            saveState() {
+                const data = this.readData();
+                localStorage.setItem('sieveDataMatrix', JSON.stringify({ names: sampleNames, matrix: data }));
+            }
+        };
+
+        // --- 3. MATHEMATICAL LOGIC ---
+        const MathUtils = {
+            // FIXED 3: Added Complete Folk & Ward Classification functions
+            getWentworthClass(phi) {
+                if (phi < -8) return 'Boulder';
+                if (phi < -6) return 'Cobble';
+                if (phi < -2) return 'Pebble';
+                if (phi < -1) return 'Granule';
+                if (phi < 0) return 'Very Coarse Sand';
+                if (phi < 1) return 'Coarse Sand';
+                if (phi < 2) return 'Medium Sand';
+                if (phi < 3) return 'Fine Sand';
+                if (phi < 4) return 'Very Fine Sand';
+                if (phi < 5) return 'Coarse Silt';
+                if (phi < 6) return 'Medium Silt';
+                if (phi < 7) return 'Fine Silt';
+                if (phi < 8) return 'Very Fine Silt';
+                return 'Clay';
+            },
+            getSortingClass(sd) {
+                if (sd < 0.35) return 'Very well sorted';
+                if (sd < 0.50) return 'Well sorted';
+                if (sd < 0.71) return 'Moderately well sorted';
+                if (sd < 1.00) return 'Moderately sorted';
+                if (sd < 2.00) return 'Poorly sorted';
+                if (sd < 4.00) return 'Very poorly sorted';
+                return 'Extremely poorly sorted';
+            },
+            getSkewnessClass(sk) {
+                if (sk > 0.3) return 'Strongly fine skewed';
+                if (sk > 0.1) return 'Fine skewed';
+                if (sk >= -0.1) return 'Near symmetrical';
+                if (sk >= -0.3) return 'Coarse skewed';
+                return 'Strongly coarse skewed';
+            },
+            getKurtosisClass(kg) {
+                if (kg < 0.67) return 'Very platykurtic';
+                if (kg < 0.90) return 'Platykurtic';
+                if (kg < 1.11) return 'Mesokurtic';
+                if (kg < 1.50) return 'Leptokurtic';
+                if (kg < 3.00) return 'Very leptokurtic';
+                return 'Extremely leptokurtic';
+            },
+
+            // FIXED 4: Capped KDE generation exactly at the Pan phi boundary
+            generateKDE(raw, bandwidth = 0.5) {
+                let kdeData = [];
+                let minP = Math.floor(raw[0].phi - 2);
+                let maxP = raw[raw.length-1].phi; // KDE mathematically stops at pan edge
+                
+                for (let x = minP; x <= maxP; x += 0.1) {
+                    let density = 0;
+                    raw.forEach(bin => {
+                        if(bin.weightPercent > 0) {
+                            let u = (x - bin.midpointPhi) / bandwidth;
+                            let k = (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * u * u);
+                            density += (bin.weightPercent / bandwidth) * k;
+                        }
+                    });
+                    kdeData.push({ x: parseFloat(x.toFixed(2)), y: parseFloat(density.toFixed(2)) });
+                }
+                return kdeData;
+            },
+
+            calculate(data) {
+                const totalW = data.reduce((sum, row) => sum + row.weight, 0);
+                if (totalW === 0) return null;
+
+                let cumRetained = 0;
+                data.forEach(row => {
+                    row.phi = row.isPan ? Math.ceil(-Math.log2(data[data.length-2].size)) + 1 : -Math.log2(row.size);
+                    row.weightPercent = (row.weight / totalW) * 100;
+                    cumRetained += row.weightPercent;
+                    row.cumRetained = cumRetained;
+                    row.cumPassing = 100 - cumRetained;
+                });
+
+                let extrapolatedFlags = []; 
+
+                const interpPhi = (p, label) => {
+                    const sorted = [...data].sort((a, b) => a.cumRetained - b.cumRetained);
+
+                    if (p < sorted[0].cumRetained) {
+                        if (label) extrapolatedFlags.push(label);
+                        if (sorted.length < 2) return sorted[0].phi;
+                        const slope = (sorted[1].phi - sorted[0].phi) /
+                                      (sorted[1].cumRetained - sorted[0].cumRetained);
+                        return sorted[0].phi - slope * (sorted[0].cumRetained - p);
+                    }
+
+                    for (let i = 0; i < sorted.length - 1; i++) {
+                        if (sorted[i].cumRetained <= p && sorted[i+1].cumRetained >= p) {
+                            return sorted[i].phi +
+                                   (p - sorted[i].cumRetained) *
+                                   (sorted[i+1].phi - sorted[i].phi) /
+                                   (sorted[i+1].cumRetained - sorted[i].cumRetained);
+                        }
+                    }
+
+                    if (label) extrapolatedFlags.push(label);
+                    const n = sorted.length;
+                    if (n >= 2) {
+                        const slope = (sorted[n-1].phi - sorted[n-2].phi) /
+                                      (sorted[n-1].cumRetained - sorted[n-2].cumRetained);
+                        return sorted[n-1].phi + slope * (p - sorted[n-1].cumRetained);
+                    }
+                    return sorted[n-1].phi;
+                };
+
+                const p5 = interpPhi(5, 'D95'), p16 = interpPhi(16, 'D84'), p25 = interpPhi(25, 'D75'), 
+                      p50 = interpPhi(50, 'D50'), p75 = interpPhi(75, 'D25'), p84 = interpPhi(84, 'D16'), p95 = interpPhi(95, 'D5');
+
+                const Mz = (p16 + p50 + p84) / 3;
+                const Sd = (p84 - p16) / 4 + (p95 - p5) / 6.6;
+                const Sk = (p16 + p84 - 2 * p50) / (2 * (p84 - p16)) + (p5 + p95 - 2 * p50) / (2 * (p95 - p5));
+                const Kg = (p95 - p5) / (2.44 * (p75 - p25));
+
+                let mF = 0, mFM = 0;
+                data.forEach((row, i) => {
+                    let midpointPhi = i === 0 ? row.phi - 0.5 : (row.isPan ? data[i-1].phi + 1.0 : (row.phi + data[i-1].phi) / 2);
+                    row.midpointPhi = midpointPhi;
+                    mFM += (row.weightPercent * midpointPhi);
+                    mF += row.weightPercent;
+                });
+                
+                const meanMoM = mFM / 100;
+                let varSum = 0, skewSum = 0, kurtSum = 0;
+                data.forEach(row => {
+                    const dev = row.midpointPhi - meanMoM;
+                    varSum += row.weightPercent * Math.pow(dev, 2);
+                    skewSum += row.weightPercent * Math.pow(dev, 3);
+                    kurtSum += row.weightPercent * Math.pow(dev, 4);
+                });
+                
+                const sdMoM = Math.sqrt(varSum / 100);
+                const skewMoM = (skewSum / 100) / Math.pow(sdMoM, 3);
+                const kurtMoM = (kurtSum / 100) / Math.pow(sdMoM, 4);
+
+                // FIXED 1: Re-aligned >2mm to Gravel and >0.0625 to Sand. Safe Silt/Clay explicit 0.
+                const hasFineSieves = data.some(d => d.size < 0.0625 && !d.isPan);
+                
+                const gravel = data.filter(d => d.size >= 2 && !d.isPan).reduce((sum, d) => sum + d.weightPercent, 0);
+                const sand = data.filter(d => d.size >= 0.0625 && d.size < 2 && !d.isPan).reduce((sum, d) => sum + d.weightPercent, 0);
+                const fines = data.filter(d => d.size < 0.0625 || d.isPan).reduce((sum, d) => sum + d.weightPercent, 0);
+                
+                const silt = hasFineSieves ? data.filter(d => (d.size >= 0.0039 && d.size < 0.0625) && !d.isPan).reduce((sum, d) => sum + d.weightPercent, 0) : 0;
+                const clay = hasFineSieves ? data.filter(d => d.size < 0.0039 || d.isPan).reduce((sum, d) => sum + d.weightPercent, 0) : 0;
+
+                let className = "Mixed Sediment";
+                if (gravel > 50) className = sand > 10 ? "Sandy Gravel" : "Gravel";
+                else if (sand > 50) className = gravel > 10 ? "Gravelly Sand" : (fines > 10 ? "Muddy Sand" : "Sand");
+                else if (fines > 50) className = sand > 10 ? "Sandy Mud" : "Mud";
+
+                return {
+                    raw: data, totalW, gravel, sand, silt, clay, fines, className, hasFineSieves,
+                    percentiles: { p5, p16, p25, p50, p75, p84, p95 },
+                    graphic: { Mz, Sd, Sk, Kg, D50mm: Math.pow(2, -p50) },
+                    mom: { mean: meanMoM, sd: sdMoM, skew: skewMoM, kurt: kurtMoM },
+                    panWarning: (data.find(d => d.isPan)?.weightPercent || 0) > 5,
+                    extrapolatedPercentiles: [...new Set(extrapolatedFlags)]
+                };
+            }
+        };
+
+        // --- 4. APP LOGIC & RENDERING ---
+        const AppLogic = {
+            execute() {
+                UI.saveState();
+                const rawMatrix = UI.readData(); 
+                let batchResults = [];
+                
+                for(let s = 0; s < sampleNames.length; s++) {
+                    let sampleData = [];
+                    rawMatrix.forEach(row => {
+                        let size = parseFloat(row.size);
+                        let weight = parseFloat(row.weights[s]);
+                        if(!isNaN(size) && !isNaN(weight)) {
+                            sampleData.push({ size: size <= 0 ? 0.0001 : size, weight: Math.max(0, weight), isPan: size <= 0 });
+                        }
+                    });
+                    sampleData.sort((a,b) => b.size - a.size);
+                    const res = MathUtils.calculate(sampleData);
+                    if(res) {
+                        res.sampleName = sampleNames[s];
+                        batchResults.push(res);
+                    }
+                }
+
+                if (batchResults.length === 0) return alert("Please enter valid sieve data for at least one sample.");
+                
+                latestResults = batchResults;
+                currentSampleIndex = 0;
+
+                const sel = document.getElementById('sample-selector');
+                sel.innerHTML = '';
+                latestResults.forEach((res, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.innerText = res.sampleName;
+                    sel.appendChild(opt);
+                });
+
+                document.getElementById('results-container').classList.remove('hidden');
+                document.getElementById('charts-wrapper').classList.remove('hidden');
+                document.getElementById('export-plots-btn').classList.remove('hidden');
+                document.getElementById('export-csv-btn').classList.remove('hidden');
+                
+                this.updateStatsDisplay();
+                this.renderCharts();
+            },
+
+            updateStatsDisplay() {
+                const res = latestResults[currentSampleIndex];
+
+                document.getElementById('warning-container').style.display = res.panWarning ? 'block' : 'none';
+                document.getElementById('sediment-name').innerText = res.className;
+
+                const extWarn = document.getElementById('extrap-warning-container');
+                if (res.extrapolatedPercentiles && res.extrapolatedPercentiles.length > 0) {
+                    extWarn.style.display = 'block';
+                    document.getElementById('extrap-warning-text').innerText = 
+                        `⚠️ Extrapolation Warning: The following percentiles fall outside the bounds of the measured sieves and were mathematically extrapolated: ${res.extrapolatedPercentiles.join(', ')}.`;
+                } else {
+                    extWarn.style.display = 'none';
+                }
+
+                // FIXED 3: Applied F&W Classes to HTML Output
+                document.getElementById('graphic-stats').innerHTML = `
+                    <p>Mean (Mz): ${res.graphic.Mz.toFixed(2)} Φ (${MathUtils.getWentworthClass(res.graphic.Mz)})</p>
+                    <p>Median (D50): ${res.graphic.D50mm.toFixed(3)} mm</p>
+                    <p>Sorting: ${res.graphic.Sd.toFixed(2)} Φ (${MathUtils.getSortingClass(res.graphic.Sd)})</p>
+                    <p>Skewness: ${res.graphic.Sk.toFixed(2)} (${MathUtils.getSkewnessClass(res.graphic.Sk)})</p>
+                    <p>Kurtosis: ${res.graphic.Kg.toFixed(2)} (${MathUtils.getKurtosisClass(res.graphic.Kg)})</p>
+                `;
+
+                document.getElementById('mom-stats').innerHTML = `
+                    <p>Mean: ${res.mom.mean.toFixed(2)} Φ</p>
+                    <p>Standard Dev: ${res.mom.sd.toFixed(2)} Φ</p>
+                    <p>Skewness: ${res.mom.skew.toFixed(2)}</p>
+                    <p>Kurtosis: ${res.mom.kurt.toFixed(2)}</p>
+                `;
+            },
+
+            renderCharts() {
+                const destroy = (id) => { if(chartInstances[id]) chartInstances[id].destroy(); };
+                
+                const activeRes = latestResults[currentSampleIndex];
+                const xLabels = activeRes.raw.map(d => d.isPan ? 'Pan' : d.phi.toFixed(1));
+                const weightPercents = activeRes.raw.map(d => d.weightPercent);
+                
+                // 1. GLOBAL Distribution Curve
+                const curveDatasets = [];
+                latestResults.forEach((res, i) => {
+                    // FIXED 2: Stripped unshift, chart plots precisely from authentic coarsest data point
+                    const curveData = res.raw.filter(d => !d.isPan).map(d => ({ x: d.size, y: d.cumPassing }));
+                    
+                    curveDatasets.push({
+                        label: res.sampleName,
+                        data: curveData,
+                        borderColor: CHART_COLORS[i % CHART_COLORS.length],
+                        borderWidth: 2,
+                        tension: 0.2,
+                        datalabels: { display: false }
+                    });
+
+                    if (i === currentSampleIndex) {
+                        const folkPoints = [
+                            {x: Math.pow(2, -res.percentiles.p5), y: 95, label: 'D95'},
+                            {x: Math.pow(2, -res.percentiles.p16), y: 84, label: 'D84'},
+                            {x: Math.pow(2, -res.percentiles.p50), y: 50, label: 'D50'},
+                            {x: Math.pow(2, -res.percentiles.p84), y: 16, label: 'D16'},
+                            {x: Math.pow(2, -res.percentiles.p95), y: 5, label: 'D5'}
+                        ];
+                        curveDatasets.push({
+                            label: 'Folk (' + res.sampleName + ')',
+                            data: folkPoints,
+                            type: 'scatter',
+                            backgroundColor: '#ef4444',
+                            pointRadius: 6,
+                            datalabels: { display: true, align: 'top', formatter: (v) => v.label, font: { weight: 'bold' } }
+                        });
+                    }
+                });
+
+                destroy('distribution-curve');
+                chartInstances['distribution-curve'] = new Chart(document.getElementById('distribution-curve').getContext('2d'), {
+                    type: 'line',
+                    data: { datasets: curveDatasets },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { legend: { display: latestResults.length > 1, position: 'top', labels: { usePointStyle: true, boxWidth: 8 } } },
+                        scales: { 
+                            x: { type: 'logarithmic', title: { display: true, text: 'Diameter (mm)'}, ticks: { maxRotation: 0, callback: function(value) { const str = value.toString(); if (str.startsWith('1') || str.startsWith('2') || str.startsWith('5')) return value; return ''; } } }, 
+                            y: { min: 0, max: 100, title: { display: true, text: 'Weight % Finer' } } 
+                        } 
+                    }
+                });
+
+                // 2. Histogram
+                const showCurve = document.getElementById('overlay-curve-toggle').checked;
+                const maxVal = Math.max(...weightPercents);
+                const histDatasets = [{ 
+                    label: 'Weight %', data: weightPercents, backgroundColor: 'rgba(54, 162, 235, 0.6)', borderColor: '#3b82f6', borderWidth: 1,
+                    datalabels: { display: true, align: 'top', anchor: 'end', color: '#1e40af', formatter: (v) => (v === maxVal && v > 0) ? 'MODE' : '' }
+                }];
+                if (showCurve) histDatasets.push({ label: 'Trend', type: 'line', data: weightPercents, borderColor: '#1e293b', borderWidth: 2, tension: 0.4, pointRadius: 0, fill: false, datalabels: { display: false } });
+
+                destroy('histogram-chart');
+                chartInstances['histogram-chart'] = new Chart(document.getElementById('histogram-chart').getContext('2d'), {
+                    type: 'bar',
+                    data: { labels: xLabels, datasets: histDatasets },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { title: { display:true, text: 'Φ Scale' } }, y: { title: { display: true, text: 'Weight %' }, grace: '20%' } } }
+                });
+
+                // 3. Pie Chart
+                const pieLabels = activeRes.hasFineSieves ? ['Gravel', 'Sand', 'Silt', 'Clay'] : ['Gravel', 'Sand', 'Fines'];
+                const pieDataVals = activeRes.hasFineSieves ? [activeRes.gravel, activeRes.sand, activeRes.silt, activeRes.clay] : [activeRes.gravel, activeRes.sand, activeRes.fines];
+                const pieColors = activeRes.hasFineSieves ? ['#6699CC', '#BDB76B', '#E69F00', '#A0522D'] : ['#6699CC', '#BDB76B', '#E69F00'];
+                
+                destroy('pie-chart');
+                chartInstances['pie-chart'] = new Chart(document.getElementById('pie-chart').getContext('2d'), {
+                    type: 'pie',
+                    data: { labels: pieLabels, datasets: [{ data: pieDataVals, backgroundColor: pieColors }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { datalabels: { formatter: (v) => v > 0 ? v.toFixed(1) + '%' : '', color: '#fff', font: { weight: 'bold' } } } }
+                });
+
+                // 4. Classification Bar Chart
+                let barDatasets = [
+                    { label: 'Gravel', data: [activeRes.gravel], backgroundColor: '#6699CC', maxBarThickness: 40 },
+                    { label: 'Sand', data: [activeRes.sand], backgroundColor: '#BDB76B', maxBarThickness: 40 }
+                ];
+                if (activeRes.hasFineSieves) {
+                    barDatasets.push({ label: 'Silt', data: [activeRes.silt], backgroundColor: '#E69F00', maxBarThickness: 40 });
+                    barDatasets.push({ label: 'Clay', data: [activeRes.clay], backgroundColor: '#A0522D', maxBarThickness: 40 });
+                    document.getElementById('composition-title').innerText = 'Gravel-Sand-Silt-Clay Proportions';
+                } else {
+                    barDatasets.push({ label: 'Fines', data: [activeRes.fines], backgroundColor: '#E69F00', maxBarThickness: 40 });
+                    document.getElementById('composition-title').innerText = 'Gravel-Sand-Fines Proportions';
+                }
+
+                destroy('classification-bar-chart');
+                chartInstances['classification-bar-chart'] = new Chart(document.getElementById('classification-bar-chart').getContext('2d'), {
+                    type: 'bar',
+                    data: { labels: ['Composition'], datasets: barDatasets },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, min: 0, max: 100, title: { display: true, text: 'Percent (%)' } } }, plugins: { datalabels: { formatter: (v) => v > 3 ? v.toFixed(1) + '%' : '', color: '#fff', font: { weight: 'bold' } } } }
+                });
+
+                // 5. Phi Scale Chart
+                // FIXED 2: Stripped forced 100% anchor for proper authentic data scaling
+                destroy('phi-scale-chart');
+                chartInstances['phi-scale-chart'] = new Chart(document.getElementById('phi-scale-chart').getContext('2d'), {
+                    type: 'line',
+                    data: { labels: activeRes.raw.map(d => d.isPan ? 'Pan' : d.phi.toFixed(1)), datasets: [{ data: activeRes.raw.map(d=>d.cumPassing), borderColor: '#71717a', backgroundColor: '#71717a', tension: 0.4 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { datalabels: { display: false }, legend: { display: false } }, scales: { x: { title: { display: true, text: 'Φ Scale' } }, y: { title: { display: true, text: 'Weight % Finer' } } } }
+                });
+
+                // 6. Frequency Curve
+                destroy('frequency-curve');
+                chartInstances['frequency-curve'] = new Chart(document.getElementById('frequency-curve').getContext('2d'), {
+                    type: 'line',
+                    data: { labels: xLabels, datasets: [{ data: weightPercents, borderColor: '#1e293b', backgroundColor: '#1e293b', tension: 0.4 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { datalabels: { display: false }, legend: { display: false } }, scales: { x: { title: { display: true, text: 'Φ Scale' } }, y: { title: { display: true, text: 'Weight %' } } } }
+                });
+
+                // 7. Kernel Density Estimate
+                const bw = parseFloat(document.getElementById('kde-bandwidth').value) || 0.5;
+                const kdePoints = MathUtils.generateKDE(activeRes.raw, bw);
+                
+                destroy('density-curve');
+                chartInstances['density-curve'] = new Chart(document.getElementById('density-curve').getContext('2d'), {
+                    type: 'line',
+                    data: { datasets: [{ data: kdePoints, borderColor: '#1e293b', backgroundColor: 'rgba(30,41,59,0.4)', fill: true, tension: 0.4, pointRadius: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { datalabels: { display: false }, legend: { display: false } }, scales: { x: { type: 'linear', title: { display: true, text: 'Φ Scale' } }, y: { title: { display: true, text: 'Density Estimate' } } } }
+                });
+            }
+        };
+
+        // --- 5. EXPORT UTILS ---
+        const exportCSV = () => {
+            if(!latestResults || latestResults.length === 0) return;
+            
+            let csv = "Metric," + latestResults.map(r => `"${r.sampleName}"`).join(',') + "\n";
+            csv += "Classification," + latestResults.map(r => r.className).join(',') + "\n";
+            csv += "Gravel %," + latestResults.map(r => r.gravel.toFixed(2)).join(',') + "\n";
+            csv += "Sand %," + latestResults.map(r => r.sand.toFixed(2)).join(',') + "\n";
+            csv += "Fines (Total) %," + latestResults.map(r => r.fines.toFixed(2)).join(',') + "\n";
+            csv += "Silt %," + latestResults.map(r => r.hasFineSieves ? r.silt.toFixed(2) : "N/A").join(',') + "\n";
+            csv += "Clay %," + latestResults.map(r => r.hasFineSieves ? r.clay.toFixed(2) : "N/A").join(',') + "\n\n";
+            
+            // FIXED 3: Appended the full array of F&W Verbal Classes into the CSV layout
+            csv += "Graphic Measures (Folk & Ward)\n";
+            csv += "Mean (Phi)," + latestResults.map(r => r.graphic.Mz.toFixed(3)).join(',') + "\n";
+            csv += "Mean Class," + latestResults.map(r => `"${MathUtils.getWentworthClass(r.graphic.Mz)}"`).join(',') + "\n";
+            csv += "Median D50 (mm)," + latestResults.map(r => r.graphic.D50mm.toFixed(3)).join(',') + "\n";
+            csv += "Sorting (Phi)," + latestResults.map(r => r.graphic.Sd.toFixed(3)).join(',') + "\n";
+            csv += "Sorting Class," + latestResults.map(r => `"${MathUtils.getSortingClass(r.graphic.Sd)}"`).join(',') + "\n";
+            csv += "Skewness," + latestResults.map(r => r.graphic.Sk.toFixed(3)).join(',') + "\n";
+            csv += "Skewness Class," + latestResults.map(r => `"${MathUtils.getSkewnessClass(r.graphic.Sk)}"`).join(',') + "\n";
+            csv += "Kurtosis," + latestResults.map(r => r.graphic.Kg.toFixed(3)).join(',') + "\n";
+            csv += "Kurtosis Class," + latestResults.map(r => `"${MathUtils.getKurtosisClass(r.graphic.Kg)}"`).join(',') + "\n\n";
+
+            csv += "Method of Moments\n";
+            csv += "Mean (Phi)," + latestResults.map(r => r.mom.mean.toFixed(3)).join(',') + "\n";
+            csv += "Sorting (Phi)," + latestResults.map(r => r.mom.sd.toFixed(3)).join(',') + "\n";
+            csv += "Skewness," + latestResults.map(r => r.mom.skew.toFixed(3)).join(',') + "\n";
+            csv += "Kurtosis," + latestResults.map(r => r.mom.kurt.toFixed(3)).join(',') + "\n\n";
+
+            let allSizes = new Set();
+            latestResults.forEach(res => res.raw.forEach(r => allSizes.add(r.isPan ? 0 : r.size)));
+            let sortedSizes = Array.from(allSizes).sort((a,b) => b-a);
+
+            csv += "RAW DATA (Retained Weights in g)\n";
+            csv += "Sieve Size (mm)," + latestResults.map(r => `"${r.sampleName}"`).join(',') + "\n";
+            sortedSizes.forEach(size => {
+                let label = size === 0 ? 'Pan' : size;
+                let row = [label];
+                latestResults.forEach(res => {
+                    let sRaw = res.raw.find(r => (r.isPan ? 0 : r.size) === size);
+                    row.push(sRaw ? sRaw.weight : 0);
+                });
+                csv += row.join(',') + "\n";
+            });
+
+            csv += "\nCUMULATIVE PASSING %\n";
+            csv += "Sieve Size (mm)," + latestResults.map(r => `"${r.sampleName}"`).join(',') + "\n";
+            sortedSizes.forEach(size => {
+                let label = size === 0 ? 'Pan' : size;
+                let row = [label];
+                latestResults.forEach(res => {
+                    let sRaw = res.raw.find(r => (r.isPan ? 0 : r.size) === size);
+                    row.push(sRaw ? sRaw.cumPassing.toFixed(2) : "");
+                });
+                csv += row.join(',') + "\n";
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'master_batch_report.csv');
+            a.click();
+        };
+
+        const exportPlots = () => {
+            for (let id in chartInstances) {
+                const canvas = document.getElementById(id);
+                const link = document.createElement('a');
+                link.download = `${id}_export.png`;
+                link.href = canvas.toDataURL('image/png', 1.0);
+                link.click();
+            }
+        };
+
+        window.onload = () => UI.init();
+    </script>
+</body>
+</html>
